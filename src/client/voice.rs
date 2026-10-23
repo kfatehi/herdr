@@ -325,8 +325,12 @@ impl Recorder for DaemonRecorder {
         self.holding.load(Ordering::SeqCst)
     }
 
+    /// Settled once the transcript has ended *and* its edits were taken. The client loop stops
+    /// ticking voice when the phrase settles, so the final line, which lands just before the reader
+    /// marks the phrase settled, would otherwise wait in the queue until the next phrase discards it.
     fn is_settled(&self) -> bool {
         self.settled.load(Ordering::SeqCst)
+            && self.ledger.lock().map(|l| l.queue.is_empty()).unwrap_or(true)
     }
 
     fn take_edits(&mut self) -> Vec<Edit> {

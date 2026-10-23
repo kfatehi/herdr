@@ -404,6 +404,20 @@ fn the_meter_fills_while_listening_and_clears_after() {
 }
 
 #[test]
+fn a_phrase_is_not_settled_while_its_final_words_wait_to_be_typed() {
+    let mut recorder = DaemonRecorder::new("http://127.0.0.1:1".into());
+    // The reader queued the final transcript and then marked the phrase settled, between ticks.
+    recorder.ledger.lock().unwrap().revise("over the lazy dog");
+    recorder.settled.store(true, Ordering::SeqCst);
+    assert!(!recorder.is_settled(), "the loop must keep ticking to type the tail");
+    assert_eq!(
+        recorder.take_edits(),
+        vec![Edit::Type("over the lazy dog".into())]
+    );
+    assert!(recorder.is_settled());
+}
+
+#[test]
 fn disabled_voice_passes_everything_through() {
     let mut voice = VoiceInput::new(&crate::config::VoiceConfig {
         enabled: false,
