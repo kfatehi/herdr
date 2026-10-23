@@ -17,11 +17,13 @@ mod clipboard_image;
 mod config_backup;
 mod notifications;
 mod power;
+mod voice;
 pub(crate) use notifications::{
     foreground_desktop_notification_host, maybe_activate_desktop_notification,
     show_actionable_desktop_notification, show_desktop_notification,
 };
 pub(crate) use power::monitor_host_power;
+pub(crate) use voice::{voice_key_physically_down, VoiceCapture};
 
 static ALLOW_UNELEVATED_CLIENTS: OnceLock<bool> = OnceLock::new();
 

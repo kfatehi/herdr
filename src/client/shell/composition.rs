@@ -338,13 +338,26 @@ impl ClientShellState {
             self.hits.tab_scroll_left = Rect::default();
             self.hits.tab_scroll_right = Rect::default();
         }
+        let voice_meter = self.render_voice_meter(
+            &mut buffer,
+            if layout.tab_bar.is_empty() {
+                layout.pane_surface
+            } else {
+                layout.tab_bar
+            },
+        );
         let mut frame = FrameData::from_ratatui_buffer_with_hyperlinks(&buffer, None, &[]);
         let mode_bar_cells = mode_bar.map(|bar| {
             let start = usize::from(bar.y) * usize::from(frame.width) + usize::from(bar.x);
             frame.cells[start..start + usize::from(bar.width)].to_vec()
         });
+        let voice_meter_cells = voice_meter.map(|bar| {
+            let start = usize::from(bar.y) * usize::from(frame.width) + usize::from(bar.x);
+            frame.cells[start..start + usize::from(bar.width)].to_vec()
+        });
         blit_pane_surface(&mut frame, &surface.frame, layout.pane_surface);
         restore_mode_bar(&mut frame, mode_bar, mode_bar_cells.as_deref());
+        restore_mode_bar(&mut frame, voice_meter, voice_meter_cells.as_deref());
         let mut occlusion = crate::kitty_graphics::surface::Occlusion::default();
         let has_selection = self
             .selection
