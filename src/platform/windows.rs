@@ -1959,19 +1959,20 @@ pub fn live_pane_process_group(shell_pid: u32, pid: u32, start_token: u64) -> Op
     .then_some(pid)
 }
 
-/// Whether `pid` is a running process launched from the pane shell
-/// `shell_pid`. A process that only inherited the pane's environment, such as
+/// Whether `pid` is the pane shell `shell_pid` or a running process launched
+/// from it. A process that only inherited the pane's environment, such as
 /// one hosted by a daemon started elsewhere, is not. Reads a fresh snapshot
 /// because the reporter may have started inside the cache window.
 pub(crate) fn process_runs_in_pane(shell_pid: u32, pid: u32) -> bool {
     ProcessIdentity::open(pid).is_some_and(|identity| identity.running())
-        && process_belongs_to_pane(
-            shell_pid,
-            pid,
-            &fresh_foreground_processes(),
-            |shell| process_is_git_bash(shell.pid),
-            |entry| process_runtime_marker(entry.pid),
-        )
+        && (pid == shell_pid
+            || process_belongs_to_pane(
+                shell_pid,
+                pid,
+                &fresh_foreground_processes(),
+                |shell| process_is_git_bash(shell.pid),
+                |entry| process_runtime_marker(entry.pid),
+            ))
 }
 
 fn process_entry_identifies_agent(entry: &WindowsProcessEntry) -> bool {
@@ -4807,6 +4808,10 @@ mod tests {
         assert!(
             !super::process_runs_in_pane(child.id(), shell),
             "a process outside the pane shell's tree"
+        );
+        assert!(
+            super::process_runs_in_pane(shell, shell),
+            "the pane's own process, as when an agent is the pane command"
         );
 
         let _ = child.kill();
