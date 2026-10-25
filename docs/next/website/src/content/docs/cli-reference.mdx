@@ -290,6 +290,7 @@ herdr pane report-agent-session <pane_id> \
   [--agent-session-id ID] \
   [--agent-session-path PATH] \
   [--session-start-source SOURCE] \
+  [--agent-pid PID] \
   [-- RESUME_COMMAND...]
 
 herdr pane release-agent <pane_id> \
@@ -298,7 +299,7 @@ herdr pane release-agent <pane_id> \
   [--seq N]
 ```
 
-`report-agent-session` updates native session identity without reporting lifecycle state. `release-agent` ends that source's lifecycle authority when its agent process exits.
+`report-agent-session` updates native session identity without reporting lifecycle state. With `--agent-pid`, the report applies only while that process runs in the pane. `release-agent` ends that source's lifecycle authority when its agent process exits.
 
 Arguments after `--` are the command Herdr runs to resume this session after a server restart. The first argument must be a plain command name on `PATH`, and no argument may contain an apostrophe.
 

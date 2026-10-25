@@ -7970,6 +7970,7 @@ fn api_report_agent_stores_valid_resume_argv_and_rejects_invalid() {
                     agent_session_id: None,
                     agent_session_path: None,
                     session_start_source: None,
+                    agent_pid: None,
                     resume_argv: Some(vec!["intruder".into()]),
                 },
             ),
@@ -8012,6 +8013,7 @@ fn api_resume_argv_is_ignored_when_its_session_report_is_refused() {
             agent_session_id: Some(session.into()),
             agent_session_path: None,
             session_start_source: None,
+            agent_pid: None,
             resume_argv: Some(vec!["claude".into(), "--resume".into(), session.into()]),
         })
     };
@@ -8025,6 +8027,55 @@ fn api_resume_argv_is_ignored_when_its_session_report_is_refused() {
     assert_eq!(
         terminal.reported_resume().unwrap().argv,
         vec!["claude", "--resume", "session-a"]
+    );
+}
+
+#[test]
+fn api_session_report_is_refused_when_its_agent_pid_is_not_in_the_pane() {
+    let (writer, _control_rx, _render_rx) = test_client_writer();
+    let (mut server, pane_id) = completion_guard_server(writer);
+    let public_pane_id = server.app.public_pane_id(0, pane_id).unwrap();
+    let terminal_id = server.app.state.workspaces[0].tabs[0].panes[&pane_id]
+        .attached_terminal_id
+        .clone();
+    server.handle_internal_event_with_forwarding(AppEvent::AgentProcessDetected {
+        pane_id,
+        agent: crate::detect::Agent::Claude,
+        observed_at: Instant::now(),
+    });
+
+    // A background session hosted by `claude daemon` carries the pane's
+    // environment, but its process is not the pane's (this test pane has no
+    // shell at all), so its SessionStart must not take the pane over.
+    let (respond_to, response_rx) = std::sync::mpsc::channel();
+    server.handle_api_request_with_shutdown_check(api::ApiRequestMessage {
+        request: api::schema::Request {
+            id: "background-session".into(),
+            method: api::schema::Method::PaneReportAgentSession(
+                api::schema::PaneReportAgentSessionParams {
+                    pane_id: public_pane_id,
+                    source: "herdr:claude".into(),
+                    agent: "claude".into(),
+                    seq: None,
+                    agent_session_id: Some("background-session".into()),
+                    agent_session_path: None,
+                    session_start_source: None,
+                    agent_pid: Some(u64::from(std::process::id())),
+                    resume_argv: None,
+                },
+            ),
+        },
+        respond_to,
+        response_write_complete: None,
+    });
+    let response = response_rx
+        .recv_timeout(Duration::from_millis(100))
+        .unwrap();
+    assert!(response.contains("agent_not_in_pane"), "{response}");
+    assert!(
+        !server.app.state.terminals[&terminal_id].session_ref_is_current(
+            &crate::agent_resume::AgentSessionRef::id("background-session").unwrap()
+        )
     );
 }
 
@@ -8152,6 +8203,7 @@ fn completion_guard_api_session_replacement_does_not_notify_finished() {
                     agent_session_path: Some(new_session.clone()),
                     resume_argv: None,
                     session_start_source: Some(reason.into()),
+                    agent_pid: None,
                 }),
             );
             let mut report = PaneReportAgentParams {

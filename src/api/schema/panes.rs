@@ -436,6 +436,11 @@ crate::cli::projection::cli_params! {
         pub agent_session_path: Option<String> => Field::new(None).input(binding::optional_text("agent-session-path", "PATH").path()),
         #[serde(default, skip_serializing_if = "Option::is_none")]
         pub session_start_source: Option<String> => Field::new(None).input(binding::optional_text("session-start-source", "SOURCE")),
+        /// Process ID of the reporting agent. When given, the report is
+        /// accepted only while that process runs in the pane, so an agent that
+        /// merely inherited the pane's environment cannot claim it.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub agent_pid: Option<u64> => Field::new(None).input(binding::number("agent-pid", "PID")),
         /// Command that resumes this agent's session after a Herdr restart. The
         /// first element must be a plain command name.
         #[serde(default, skip_serializing_if = "Option::is_none")]

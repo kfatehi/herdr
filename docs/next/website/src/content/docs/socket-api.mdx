@@ -705,6 +705,8 @@ Both methods accept an optional `resume_argv` array with the command that resume
 }
 ```
 
+`pane.report_agent_session` also accepts an optional `agent_pid`: the process ID of the reporting agent. When it is present, Herdr applies the report only while that process runs in the pane, and otherwise fails with `agent_not_in_pane`. This keeps a background agent that merely inherited the pane's environment, for example a session hosted by a daemon, from replacing the session of the agent the pane actually shows. Reports without the field are taken as before. Older Herdr versions ignore it.
+
 `pane.get`, `pane.list`, `agent.get`, and `agent.list` expose a read-only `agent_session` object when Herdr has a stored native session reference:
 
 ```json

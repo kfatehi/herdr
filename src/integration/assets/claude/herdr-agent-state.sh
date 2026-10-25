@@ -3,7 +3,7 @@
 # managed by herdr; reinstalling or updating the integration overwrites this file.
 # add custom hooks beside this file instead of editing it.
 # HERDR_INTEGRATION_ID=claude
-# HERDR_INTEGRATION_VERSION=11
+# HERDR_INTEGRATION_VERSION=12
 
 set -eu
 
@@ -77,6 +77,11 @@ if agent_session_id:
         params["agent_session_path"] = agent_session_path
     if session_start_source:
         params["session_start_source"] = session_start_source
+    # A background session hosted by `claude daemon` inherits this pane's
+    # environment without running in it; naming our process lets herdr tell.
+    claude_pid = os.environ.get("CLAUDE_PID", "")
+    if claude_pid.isdigit() and int(claude_pid) > 0:
+        params["agent_pid"] = int(claude_pid)
     request = {
         "id": request_id,
         "method": "pane.report_agent_session",

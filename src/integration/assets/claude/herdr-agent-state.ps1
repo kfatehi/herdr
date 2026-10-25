@@ -2,7 +2,7 @@
 # managed by herdr; reinstalling or updating the integration overwrites this file.
 # add custom hooks beside this file instead of editing it.
 # HERDR_INTEGRATION_ID=claude
-# HERDR_INTEGRATION_VERSION=11
+# HERDR_INTEGRATION_VERSION=12
 
 param([string]$Action = "")
 
@@ -46,6 +46,11 @@ try {
     )
     if ($payload.transcript_path -is [string] -and -not [string]::IsNullOrWhiteSpace($payload.transcript_path)) {
         $args += @("--agent-session-path", "$($payload.transcript_path)")
+    }
+    # A background session hosted by `claude daemon` inherits this pane's
+    # environment without running in it; naming our process lets herdr tell.
+    if ($env:CLAUDE_PID -match '^[1-9][0-9]*$') {
+        $args += @("--agent-pid", "$($env:CLAUDE_PID)")
     }
     if ($payload.hook_event_name -eq "SessionStart" -and $payload.source -is [string] -and -not [string]::IsNullOrWhiteSpace($payload.source)) {
         $args += @("--session-start-source", "$($payload.source)")

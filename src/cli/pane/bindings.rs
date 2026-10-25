@@ -226,6 +226,10 @@ pub(crate) fn number(name: &'static str, value: &'static str) -> Input<Option<u6
             *slot = Some(crate::cli::parse_u64_flag("--ttl-ms", value)?);
             Ok(())
         },
+        "agent-pid" => |slot, value| {
+            *slot = Some(crate::cli::parse_u64_flag("--agent-pid", value)?);
+            Ok(())
+        },
         _ => |slot, value| {
             *slot = Some(crate::cli::parse_u64_flag("--timeout", value)?);
             Ok(())

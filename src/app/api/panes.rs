@@ -1610,6 +1610,15 @@ impl App {
         if let Err(message) = validate_optional_resume_argv(params.resume_argv.as_deref()) {
             return encode_error(id, "invalid_resume_argv", message);
         }
+        if let Some(agent_pid) = params.agent_pid {
+            if !self.process_runs_in_pane(ws_idx, pane_id, agent_pid) {
+                return encode_error(
+                    id,
+                    "agent_not_in_pane",
+                    "agent_pid does not run in this pane; it may only have inherited the pane's environment",
+                );
+            }
+        }
         let report_is_newer = self
             .pane_terminal(ws_idx, pane_id)
             .is_some_and(|terminal| terminal.hook_report_is_newer(&params.source, params.seq));
@@ -1640,6 +1649,22 @@ impl App {
             params.seq.filter(|_| applied),
             applied.then_some(params.resume_argv).flatten(),
         )
+    }
+
+    /// A background agent hosted outside the pane can still carry the pane's
+    /// environment, so a reported process must be found in the pane itself.
+    fn process_runs_in_pane(
+        &self,
+        ws_idx: usize,
+        pane_id: crate::layout::PaneId,
+        agent_pid: u64,
+    ) -> bool {
+        let Ok(agent_pid) = u32::try_from(agent_pid) else {
+            return false;
+        };
+        self.lookup_runtime(ws_idx, pane_id)
+            .and_then(|(runtime, _)| runtime.child_pid())
+            .is_some_and(|shell_pid| crate::platform::process_runs_in_pane(shell_pid, agent_pid))
     }
 
     /// A resume command belongs to the session it was reported with, so it is
