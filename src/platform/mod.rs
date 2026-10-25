@@ -592,6 +592,11 @@ pub use windows::*;
 #[cfg(not(windows))]
 pub(crate) use process_cwd as pane_process_cwd;
 
+#[cfg(not(windows))]
+mod voice_unsupported;
+#[cfg(not(windows))]
+pub(crate) use voice_unsupported::{voice_key_physically_down, VoiceCapture};
+
 #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
 mod fallback;
 #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]

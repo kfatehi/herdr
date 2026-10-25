@@ -1469,6 +1469,36 @@
       ]
     },
     {
+      "id": "voice",
+      "title": "Voice",
+      "keys": [
+        {
+          "key": "voice.enabled",
+          "type": "boolean",
+          "default": "true",
+          "description": "Push-to-talk dictation in the local client (Windows only). Hold the voice key, speak, and the words are typed into the focused pane as you say them. Enter is never sent. Requires a claude-code-voice daemon, which holds the speech-to-text credentials."
+        },
+        {
+          "key": "voice.key",
+          "type": "string",
+          "default": "\"space\"",
+          "description": "Key to hold to talk: `space`, `f1` through `f12`, or `insert`. A tapped space is still typed; only a hold opens the microphone. Other keys are swallowed while voice input is available."
+        },
+        {
+          "key": "voice.hold_time_ms",
+          "type": "integer",
+          "default": "250",
+          "description": "Milliseconds space must be held before it counts as talking rather than typing a space."
+        },
+        {
+          "key": "voice.url",
+          "type": "string",
+          "default": "\"\"",
+          "description": "Voice daemon URL. Empty uses the `CCV_URL` environment variable, then `http://127.0.0.1:8765`. The optional `CCV_TOKEN` environment variable is sent as the daemon token."
+        }
+      ]
+    },
+    {
       "id": "advanced",
       "title": "Advanced",
       "keys": [

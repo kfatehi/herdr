@@ -323,6 +323,7 @@ pub struct Config {
     pub advanced: AdvancedConfig,
     pub experimental: ExperimentalConfig,
     pub remote: RemoteConfig,
+    pub voice: VoiceConfig,
 }
 
 #[derive(Debug)]
@@ -1068,6 +1069,30 @@ impl Default for RemoteConfig {
     fn default() -> Self {
         Self {
             manage_ssh_config: true,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(default)]
+pub struct VoiceConfig {
+    /// Push-to-talk dictation in the local client. Windows only. Default: true.
+    pub enabled: bool,
+    /// Key to hold to talk: "space", "f1".."f12", or "insert". Default: "space".
+    pub key: String,
+    /// Milliseconds space must be held before it counts as talking. Default: 250.
+    pub hold_time_ms: u64,
+    /// Voice daemon URL. Empty uses CCV_URL, then http://127.0.0.1:8765. Default: "".
+    pub url: String,
+}
+
+impl Default for VoiceConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            key: "space".to_owned(),
+            hold_time_ms: 250,
+            url: String::new(),
         }
     }
 }

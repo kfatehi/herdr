@@ -40,6 +40,7 @@ mod terminal_sessions;
 mod terminal_setup;
 mod timer;
 mod transport;
+mod voice;
 
 #[cfg(test)]
 use clipboard_forwarding::decode_clipboard_payload;
@@ -214,6 +215,7 @@ fn run_client_with_mode(
         .is_some_and(shell::ClientShellConfig::uses_endpoint_keybindings);
     let mut loop_config = ClientLoopConfig {
         sound_config: loaded_config.config.ui.sound,
+        voice_config: loaded_config.config.voice,
         mouse_scroll_lines,
         redraw_on_focus_gained,
         host_cursor,
@@ -468,6 +470,7 @@ async fn run_client_loop(
         reported_size: (cols, rows),
         reported_cell_size: (initial_cell_width_px, initial_cell_height_px),
         sound_config: config.sound_config,
+        voice: voice::VoiceInput::new(&config.voice_config),
         kitty_graphics_enabled: config.kitty_graphics_enabled,
         pixel_geometry_enabled: config.pixel_geometry_enabled,
         pixel_geometry_exact: initial_pixel_geometry_exact,
@@ -798,12 +801,49 @@ async fn run_client_loop(
                 &supervisor_tx,
             );
         }
+        let voice_input = state
+            .shell
+            .as_mut()
+            .filter(|_| state.voice.needs_tick())
+            .and_then(|shell| {
+                let target = shell.voice_input_target();
+                let tick = state.voice.tick(target.as_deref(), now);
+                let meter_changed = shell.set_voice_meter(state.voice.meter());
+                if tick.events.is_empty() && !meter_changed && !tick.repaint {
+                    return None;
+                }
+                let mut outcome = shell.handle_client_events(&tick.events);
+                outcome.repaint |= meter_changed || tick.repaint;
+                let frame = outcome
+                    .repaint
+                    .then(|| shell.compose(state.reported_size.0, state.reported_size.1))
+                    .flatten();
+                Some((outcome, frame))
+            });
+        if let Some((outcome, frame)) = voice_input {
+            if finish_client_shell_input(
+                &mut state,
+                outcome,
+                frame,
+                &mut write_stream,
+                &mut pending_activation,
+                &mut endpoint_commands,
+                &mut prefix_input_source,
+                &mut scheduled_activation,
+            )? {
+                return Ok(());
+            }
+        }
         let timer_delay = state
             .shell
             .as_ref()
             .map_or(Duration::from_millis(100), |shell| {
                 shell.timer_delay(std::time::Instant::now())
             });
+        let timer_delay = state
+            .voice
+            .timer_delay()
+            .map_or(timer_delay, |voice_delay| timer_delay.min(voice_delay));
         let timer_deadline = client_timer.deadline(std::time::Instant::now(), timer_delay);
         let immediate_event = scheduled_activation.take();
         #[cfg(windows)]
@@ -1222,6 +1262,16 @@ async fn run_client_loop(
                             )?;
                             continue;
                         }
+                    }
+                    let events = {
+                        let target = state
+                            .shell
+                            .as_ref()
+                            .and_then(|shell| shell.voice_input_target());
+                        state.voice.filter_events(events, target.as_deref(), now)
+                    };
+                    if events.is_empty() {
+                        continue;
                     }
                     let (outcome, frame) = {
                         let shell = state.shell.as_mut().expect("checked shell mode");

@@ -66,6 +66,8 @@ zbus = { version = "5.19", default-features = false, features = ["tokio"] }
 futures-util = { version = "0.3", default-features = false, features = ["std"] }
 
 [target.'cfg(windows)'.dependencies]
+# Microphone capture (WASAPI) for client-side push-to-talk voice input.
+cpal = "0.18"
 # UTF-16 SDDL input for interprocess security descriptors.
 widestring = "1.2"
 wmi = { version = "0.18.4", default-features = false }
