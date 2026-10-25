@@ -477,6 +477,10 @@ crate::cli::projection::cli_params! {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         #[schemars(range(min = 1, max = 86_400_000))]
         pub ttl_ms: Option<u64> => Field::new(None).input(binding::number("ttl-ms", "N")),
+        /// Process ID of the reporter. When given, the report is accepted only
+        /// while that process runs in the pane, as for `pane.report_agent_session`.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub agent_pid: Option<u64> => Field::new(None).input(binding::number("agent-pid", "PID")),
     }
 }
 

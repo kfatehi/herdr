@@ -3014,6 +3014,15 @@
                 "null"
               ]
             },
+            "agent_pid": {
+              "description": "Process ID of the reporter. When given, the report is accepted only\nwhile that process runs in the pane, as for `pane.report_agent_session`.",
+              "format": "uint64",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
             "applies_to_source": {
               "type": [
                 "string",
