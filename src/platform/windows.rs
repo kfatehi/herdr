@@ -1959,20 +1959,38 @@ pub fn live_pane_process_group(shell_pid: u32, pid: u32, start_token: u64) -> Op
     .then_some(pid)
 }
 
-/// Whether `pid` is the pane shell `shell_pid` or a running process launched
-/// from it. A process that only inherited the pane's environment, such as
-/// one hosted by a daemon started elsewhere, is not. Reads a fresh snapshot
-/// because the reporter may have started inside the cache window.
+/// Whether `pid` is the pane shell `shell_pid` or the agent the pane shows.
+/// Any other process under the shell is not: a background agent hosted by a
+/// daemon that a pane agent started still descends from the shell. Reads a
+/// fresh snapshot because the reporter may have started inside the cache
+/// window.
 pub(crate) fn process_runs_in_pane(shell_pid: u32, pid: u32) -> bool {
     ProcessIdentity::open(pid).is_some_and(|identity| identity.running())
         && (pid == shell_pid
-            || process_belongs_to_pane(
+            || process_is_pane_agent(
                 shell_pid,
                 pid,
                 &fresh_foreground_processes(),
                 |shell| process_is_git_bash(shell.pid),
                 |entry| process_runtime_marker(entry.pid),
             ))
+}
+
+/// Whether foreground selection picks `pid` as the pane's process.
+fn process_is_pane_agent(
+    shell_pid: u32,
+    pid: u32,
+    snapshot: &ProcessSnapshot,
+    shell_is_git_bash: impl FnOnce(&WindowsProcessEntry) -> bool,
+    runtime_marker: impl FnMut(&WindowsProcessEntry) -> Option<String>,
+) -> bool {
+    select_pane_foreground_job_from_snapshot_with_runtime_inspection(
+        shell_pid,
+        snapshot,
+        shell_is_git_bash,
+        runtime_marker,
+    )
+    .is_some_and(|job| job.process_group_id == pid)
 }
 
 fn process_entry_identifies_agent(entry: &WindowsProcessEntry) -> bool {
@@ -4791,9 +4809,10 @@ mod tests {
     }
 
     #[test]
-    fn windows_reporter_runs_in_pane_only_under_the_pane_shell() {
-        // Stand-ins: this test process plays the pane shell, its child the
-        // agent. The process that started the shell is outside the pane.
+    fn windows_reporter_runs_in_pane_only_as_the_pane_process() {
+        // Stand-ins: this test process plays the pane shell, its child a
+        // helper the shell started. The process that started the shell is
+        // outside the pane.
         let mut child = std::process::Command::new("ping")
             .args(["-n", "30", "127.0.0.1"])
             .stdout(std::process::Stdio::null())
@@ -4802,24 +4821,66 @@ mod tests {
         let shell = std::process::id();
 
         assert!(
-            super::process_runs_in_pane(shell, child.id()),
-            "a process launched from the pane shell, seen on a fresh snapshot"
+            super::process_runs_in_pane(shell, shell),
+            "the pane's own process, as when an agent is the pane command"
+        );
+        assert!(
+            !super::process_runs_in_pane(shell, child.id()),
+            "a process under the pane shell that the pane does not show"
         );
         assert!(
             !super::process_runs_in_pane(child.id(), shell),
             "a process outside the pane shell's tree"
         );
-        assert!(
-            super::process_runs_in_pane(shell, shell),
-            "the pane's own process, as when an agent is the pane command"
-        );
 
         let _ = child.kill();
         let _ = child.wait();
-        assert!(
-            !super::process_runs_in_pane(shell, child.id()),
-            "an exited process"
-        );
+    }
+
+    #[test]
+    fn windows_pane_agent_is_only_the_agent_the_pane_shows() {
+        // A pane agent whose daemon hosts a background agent, and a helper
+        // the pane agent runs: all descend from the shell.
+        let entries = vec![
+            test_entry(10, 1, "pwsh.exe", &["pwsh.exe"]),
+            test_entry(20, 10, "claude.exe", &["claude.exe"]),
+            test_entry(30, 20, "python.exe", &["python.exe", "hook.py"]),
+            test_entry(40, 20, "claude.exe", &["claude.exe", "daemon"]),
+            test_entry(50, 40, "claude.exe", &["claude.exe"]),
+            test_entry(60, 1, "claude.exe", &["claude.exe"]),
+        ];
+        let snapshot = super::ProcessSnapshot::new(entries);
+        let is_pane_agent =
+            |pid| super::process_is_pane_agent(10, pid, &snapshot, |_| false, |_| None);
+
+        assert!(is_pane_agent(20), "the agent the pane shows");
+        assert!(!is_pane_agent(30), "a helper the pane agent runs");
+        assert!(!is_pane_agent(40), "a daemon the pane agent started");
+        assert!(!is_pane_agent(50), "a background agent the daemon hosts");
+        assert!(!is_pane_agent(60), "an agent outside the pane");
+        assert!(!is_pane_agent(70), "a process gone from the snapshot");
+    }
+
+    #[test]
+    fn windows_pane_agent_includes_an_escaped_git_bash_agent() {
+        let entries = vec![
+            test_entry(10, 1, "bash.exe", &[r"C:\Program Files\Git\bin\bash.exe"]),
+            test_entry(20, 99, "claude.exe", &["claude.exe"]),
+            test_entry(30, 20, "claude.exe", &["claude.exe"]),
+        ];
+        let snapshot = super::ProcessSnapshot::new(entries);
+        let is_pane_agent = |pid| {
+            super::process_is_pane_agent(
+                10,
+                pid,
+                &snapshot,
+                |_| true,
+                |_| Some("pane-a".to_string()),
+            )
+        };
+
+        assert!(is_pane_agent(20), "escaped agent with the pane marker");
+        assert!(!is_pane_agent(30), "an agent the escaped agent started");
     }
 
     #[test]
