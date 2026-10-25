@@ -1132,7 +1132,7 @@ fn claude_v9_integration_status_is_outdated_until_reinstalled() {
 
     assert_eq!(claude.path, hook_path);
     assert_eq!(claude.installed_version, Some(9));
-    assert_eq!(claude.expected_version, 11);
+    assert_eq!(claude.expected_version, 12);
     assert_eq!(claude.state, IntegrationStatusKind::Outdated);
 
     install_claude().unwrap();
@@ -1141,7 +1141,7 @@ fn claude_v9_integration_status_is_outdated_until_reinstalled() {
         hook_path,
         CLAUDE_INTEGRATION_VERSION,
     );
-    assert_eq!(status.installed_version, Some(11));
+    assert_eq!(status.installed_version, Some(12));
     assert_eq!(status.state, IntegrationStatusKind::Current);
 
     std::env::remove_var("HOME");
@@ -1171,7 +1171,7 @@ fn claude_v2_integration_status_is_outdated() {
 
     assert_eq!(claude.path, hook_path);
     assert_eq!(claude.installed_version, Some(2));
-    assert_eq!(claude.expected_version, 11);
+    assert_eq!(claude.expected_version, 12);
     assert_eq!(claude.state, IntegrationStatusKind::Outdated);
 
     std::env::remove_var("HOME");
@@ -1271,6 +1271,7 @@ fn claude_windows_hook_reports_utf8_session_path() {
         .env("HERDR_PANE_ID", "w1:p2")
         .env("HERDR_BIN_PATH", &fake_herdr)
         .env("HERDR_TEST_CAPTURE", &capture)
+        .env("CLAUDE_PID", "4242")
         .env_remove("CURSOR_VERSION")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -1295,6 +1296,7 @@ fn claude_windows_hook_reports_utf8_session_path() {
     assert!(args.contains("--agent-session-id"), "captured: {args}");
     assert!(args.contains("claude-session"), "captured: {args}");
     assert!(args.contains(transcript), "captured: {args}");
+    assert!(args.contains("--agent-pid\n4242"), "captured: {args}");
 
     if let Some(home) = previous_home {
         std::env::set_var("HOME", home);

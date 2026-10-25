@@ -166,6 +166,28 @@ fn claude_hook_reports_session_id_from_stdin() {
 }
 
 #[test]
+fn claude_hook_names_its_process_so_herdr_can_refuse_background_sessions() {
+    let input = r#"{"hook_event_name":"SessionStart","session_id":"claude-session"}"#;
+    let request = run_shell_hook_with_env(
+        "src/integration/assets/claude/herdr-agent-state.sh",
+        &["session"],
+        input,
+        &[("CLAUDE_PID", "4242")],
+    )
+    .expect("session start should report session identity");
+    assert_eq!(request["params"]["agent_pid"], 4242);
+
+    let request = run_shell_hook_with_env(
+        "src/integration/assets/claude/herdr-agent-state.sh",
+        &["session"],
+        input,
+        &[("CLAUDE_PID", "not-a-pid")],
+    )
+    .expect("session start should report session identity");
+    assert!(request["params"].get("agent_pid").is_none());
+}
+
+#[test]
 fn claude_hook_ignores_cursor_compatibility_payloads() {
     assert!(run_claude_hook(
         "session",

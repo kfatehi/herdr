@@ -240,6 +240,12 @@ pub fn live_pane_process_group(_shell_pid: u32, _pid: u32, _start_token: u64) ->
     None
 }
 
+/// Unsupported platform stub. Without process facts every reporter is taken
+/// at its word, as before reporters named their process.
+pub(crate) fn process_runs_in_pane(_shell_pid: u32, _pid: u32) -> bool {
+    true
+}
+
 /// Unsupported platform stub.
 pub fn process_exists(_pid: u32) -> bool {
     false

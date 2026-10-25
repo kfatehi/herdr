@@ -1961,6 +1961,22 @@ pub fn live_pane_process_group(shell_pid: u32, pid: u32, start_token: u64) -> Op
     .then_some(pid)
 }
 
+/// Whether `pid` is the pane shell `shell_pid` or a running process launched
+/// from it. A process that only inherited the pane's environment, such as
+/// one hosted by a daemon started elsewhere, is not. Reads a fresh snapshot
+/// because the reporter may have started inside the cache window.
+pub(crate) fn process_runs_in_pane(shell_pid: u32, pid: u32) -> bool {
+    ProcessIdentity::open(pid).is_some_and(|identity| identity.running())
+        && (pid == shell_pid
+            || process_belongs_to_pane(
+                shell_pid,
+                pid,
+                &fresh_foreground_processes(),
+                |shell| process_is_git_bash(shell.pid),
+                |entry| process_runtime_marker(entry.pid),
+            ))
+}
+
 fn process_entry_identifies_agent(entry: &WindowsProcessEntry) -> bool {
     crate::detect::identify_agent(&entry.name).is_some()
         || crate::detect::identify_agent_in_job(&foreground_job_from_entry(entry)).is_some()
@@ -4773,6 +4789,38 @@ mod tests {
         assert!(
             !super::process_belongs_to_pane(60, 11, &snapshot, |_| true, marker("pane-a")),
             "pane shell gone"
+        );
+    }
+
+    #[test]
+    fn windows_reporter_runs_in_pane_only_under_the_pane_shell() {
+        // Stand-ins: this test process plays the pane shell, its child the
+        // agent. The process that started the shell is outside the pane.
+        let mut child = std::process::Command::new("ping")
+            .args(["-n", "30", "127.0.0.1"])
+            .stdout(std::process::Stdio::null())
+            .spawn()
+            .expect("spawn child");
+        let shell = std::process::id();
+
+        assert!(
+            super::process_runs_in_pane(shell, child.id()),
+            "a process launched from the pane shell, seen on a fresh snapshot"
+        );
+        assert!(
+            !super::process_runs_in_pane(child.id(), shell),
+            "a process outside the pane shell's tree"
+        );
+        assert!(
+            super::process_runs_in_pane(shell, shell),
+            "the pane's own process, as when an agent is the pane command"
+        );
+
+        let _ = child.kill();
+        let _ = child.wait();
+        assert!(
+            !super::process_runs_in_pane(shell, child.id()),
+            "an exited process"
         );
     }
 

@@ -2947,6 +2947,15 @@
             "agent": {
               "type": "string"
             },
+            "agent_pid": {
+              "description": "Process ID of the reporting agent. When given, the report is\naccepted only while that process runs in the pane, so an agent that\nmerely inherited the pane's environment cannot claim it.",
+              "format": "uint64",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
             "agent_session_id": {
               "type": [
                 "string",
@@ -3002,6 +3011,15 @@
             "agent": {
               "type": [
                 "string",
+                "null"
+              ]
+            },
+            "agent_pid": {
+              "description": "Process ID of the reporter. When given, the report is accepted only\nwhile that process runs in the pane, as for `pane.report_agent_session`.",
+              "format": "uint64",
+              "minimum": 0,
+              "type": [
+                "integer",
                 "null"
               ]
             },

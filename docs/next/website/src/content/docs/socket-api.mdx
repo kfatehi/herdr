@@ -705,6 +705,8 @@ Both methods accept an optional `resume_argv` array with the command that resume
 }
 ```
 
+`pane.report_agent_session` also accepts an optional `agent_pid`: the process ID of the reporting agent. When it is present, Herdr applies the report only while that process runs in the pane, and otherwise fails with `agent_not_in_pane`. This keeps a background agent that merely inherited the pane's environment, for example a session hosted by a daemon, from replacing the session of the agent the pane actually shows. Reports without the field are taken as before. Older Herdr versions ignore it.
+
 `pane.get`, `pane.list`, `agent.get`, and `agent.list` expose a read-only `agent_session` object when Herdr has a stored native session reference:
 
 ```json
@@ -750,7 +752,7 @@ Use `pane.report_metadata` when a user hook wants to customize presentation with
 }
 ```
 
-Metadata reports are display-only. Valid metadata can override the pane title, displayed agent name, visible state labels, and arbitrary named tokens. `working`, `blocked`, `idle`, waits, notifications, and rollups still come from semantic state. Native session restore comes from stored official session references. `agent` is an optional guard for presentation fields against the authoritative agent label; `applies_to_source` similarly guards presentation fields against the active lifecycle authority source. These guards do not apply to token patches: token reporters own clearing and TTL refresh. Use `display_agent` to change the visible name. `state_labels` keys must be `idle`, `working`, `blocked`, `done`, or `unknown`.
+Metadata reports are display-only. Valid metadata can override the pane title, displayed agent name, visible state labels, and arbitrary named tokens. `working`, `blocked`, `idle`, waits, notifications, and rollups still come from semantic state. Native session restore comes from stored official session references. `agent` is an optional guard for presentation fields against the authoritative agent label; `applies_to_source` similarly guards presentation fields against the active lifecycle authority source. These guards do not apply to token patches: token reporters own clearing and TTL refresh. Use `display_agent` to change the visible name. `state_labels` keys must be `idle`, `working`, `blocked`, `done`, or `unknown`. `agent_pid` works as for `pane.report_agent_session`: when present, the report applies only while that process runs in the pane, and otherwise fails with `agent_not_in_pane`.
 
 Token maps are per-resource patches. A string sets a key, JSON `null` clears it, and omitted keys remain unchanged. The latest accepted update wins. Optional TTL applies independently to token keys updated by that report. Pane tokens are exposed by pane and agent get/list responses and can be rendered as `$name` in Agent sidebar rows. A report may mention at most 16 token keys, and a pane or workspace may retain at most 32 keys. Token names are 1–32 ASCII letters, digits, underscores, or hyphens.
 

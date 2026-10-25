@@ -602,6 +602,15 @@ mod fallback;
 #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
 pub use fallback::*;
 
+/// Whether `pid` is a live process in the terminal session of the pane shell
+/// `shell_pid`. A process that only inherited the pane's environment, such as
+/// one hosted by a daemon started elsewhere, is not.
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+pub(crate) fn process_runs_in_pane(shell_pid: u32, pid: u32) -> bool {
+    process_start_token(pid)
+        .is_some_and(|token| live_pane_process_group(shell_pid, pid, token).is_some())
+}
+
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 pub(crate) fn available_pane_shell_from_job(child_pid: u32, job: ForegroundJob) -> Option<String> {
     if job.process_group_id != child_pid
@@ -828,6 +837,10 @@ mod tests {
             live_pane_process_group(std::process::id(), detached.id(), token),
             None,
             "a live process in another terminal session"
+        );
+        assert!(
+            !process_runs_in_pane(std::process::id(), detached.id()),
+            "a reporter that only inherited the pane's environment"
         );
         assert_eq!(
             live_pane_process_group(gone_pid, detached.id(), token),

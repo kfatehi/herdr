@@ -1610,6 +1610,11 @@ impl App {
         if let Err(message) = validate_optional_resume_argv(params.resume_argv.as_deref()) {
             return encode_error(id, "invalid_resume_argv", message);
         }
+        if let Some(refused) =
+            self.refuse_reporter_outside_pane(&id, ws_idx, pane_id, params.agent_pid)
+        {
+            return refused;
+        }
         let report_is_newer = self
             .pane_terminal(ws_idx, pane_id)
             .is_some_and(|terminal| terminal.hook_report_is_newer(&params.source, params.seq));
@@ -1640,6 +1645,33 @@ impl App {
             params.seq.filter(|_| applied),
             applied.then_some(params.resume_argv).flatten(),
         )
+    }
+
+    /// A background agent hosted outside the pane can still carry the pane's
+    /// environment, so a reporter that names its process must be found in the
+    /// pane itself. Returns the error response when it is not.
+    fn refuse_reporter_outside_pane(
+        &self,
+        id: &str,
+        ws_idx: usize,
+        pane_id: crate::layout::PaneId,
+        agent_pid: Option<u64>,
+    ) -> Option<String> {
+        let agent_pid = agent_pid?;
+        let runs_in_pane = u32::try_from(agent_pid).is_ok_and(|agent_pid| {
+            self.lookup_runtime(ws_idx, pane_id)
+                .and_then(|(runtime, _)| runtime.child_pid())
+                .is_some_and(|shell_pid| {
+                    crate::platform::process_runs_in_pane(shell_pid, agent_pid)
+                })
+        });
+        (!runs_in_pane).then(|| {
+            encode_error(
+                id.to_string(),
+                "agent_not_in_pane",
+                "agent_pid does not run in this pane; it may only have inherited the pane's environment",
+            )
+        })
     }
 
     /// A resume command belongs to the session it was reported with, so it is
@@ -1706,6 +1738,11 @@ impl App {
         let Some((ws_idx, pane_id)) = self.parse_pane_id(&params.pane_id) else {
             return pane_not_found(id, &params.pane_id);
         };
+        if let Some(refused) =
+            self.refuse_reporter_outside_pane(&id, ws_idx, pane_id, params.agent_pid)
+        {
+            return refused;
+        }
         let agent_label = match params.agent.as_deref() {
             Some(agent) => match normalize_reported_agent_label(agent) {
                 Some(agent_label) => Some(agent_label),
@@ -2418,6 +2455,7 @@ mod tests {
             clear_state_labels: false,
             seq: None,
             ttl_ms: None,
+            agent_pid: None,
         }
     }
 
@@ -4441,6 +4479,28 @@ mod tests {
             .unwrap()
             .attached_terminal_id
             .clone();
+        assert!(app.state.terminals[&terminal_id].agent_metadata.is_empty());
+    }
+
+    #[test]
+    fn pane_metadata_from_a_process_outside_the_pane_is_refused() {
+        let (mut app, pane_id) = app_with_test_workspace();
+        let (_, internal_pane_id) = app.parse_pane_id(&pane_id).unwrap();
+        let terminal_id = app.state.workspaces[0]
+            .pane_state(internal_pane_id)
+            .unwrap()
+            .attached_terminal_id
+            .clone();
+        // A background session carries the pane's environment, but its
+        // process is not the pane's (this test pane has no shell at all).
+        let mut params = metadata_params(pane_id);
+        params.title = None;
+        params.display_agent = Some("background-session".into());
+        params.agent_pid = Some(u64::from(std::process::id()));
+
+        let response = app.handle_pane_report_metadata("background".into(), params);
+
+        assert_eq!(metadata_error_code(&response), "agent_not_in_pane");
         assert!(app.state.terminals[&terminal_id].agent_metadata.is_empty());
     }
 
