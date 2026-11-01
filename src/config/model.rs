@@ -1084,6 +1084,9 @@ pub struct VoiceConfig {
     pub hold_time_ms: u64,
     /// Voice daemon URL. Empty uses CCV_URL, then http://127.0.0.1:8765. Default: "".
     pub url: String,
+    /// A file whose first line is the daemon's token (sent as x-ccv-token). Empty uses CCV_TOKEN.
+    /// Only the path is in the config, never the token. Default: "".
+    pub token_file: String,
 }
 
 impl Default for VoiceConfig {
@@ -1093,6 +1096,7 @@ impl Default for VoiceConfig {
             key: "space".to_owned(),
             hold_time_ms: 250,
             url: String::new(),
+            token_file: String::new(),
         }
     }
 }

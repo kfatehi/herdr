@@ -97,6 +97,32 @@ fn the_configured_url_wins_over_the_environment() {
     );
 }
 
+fn scratch_dir(name: &str) -> std::path::PathBuf {
+    let dir = std::env::temp_dir().join(format!("herdr-voice-{name}-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    dir
+}
+
+#[test]
+fn token_file_gives_its_first_line_trimmed() {
+    let dir = scratch_dir("token-first-line");
+    let path = dir.join("voice.pw");
+    std::fs::write(&path, "  s3cret 
+ignored
+").unwrap();
+    assert_eq!(resolve_token(path.to_str().unwrap()), Some("s3cret".to_owned()));
+}
+
+#[test]
+fn unreadable_or_empty_token_file_means_no_token() {
+    let dir = scratch_dir("token-unreadable");
+    assert_eq!(resolve_token(dir.join("missing").to_str().unwrap()), None);
+    let empty = dir.join("empty");
+    std::fs::write(&empty, "
+").unwrap();
+    assert_eq!(resolve_token(empty.to_str().unwrap()), None);
+}
+
 #[test]
 fn splits_the_daemon_url() {
     assert_eq!(
@@ -405,7 +431,7 @@ fn the_meter_fills_while_listening_and_clears_after() {
 
 #[test]
 fn a_phrase_is_not_settled_while_its_final_words_wait_to_be_typed() {
-    let mut recorder = DaemonRecorder::new("http://127.0.0.1:1".into());
+    let mut recorder = DaemonRecorder::new("http://127.0.0.1:1".into(), None);
     // The reader queued the final transcript and then marked the phrase settled, between ticks.
     recorder.ledger.lock().unwrap().revise("over the lazy dog");
     recorder.settled.store(true, Ordering::SeqCst);
@@ -436,7 +462,7 @@ fn disabled_voice_passes_everything_through() {
 #[ignore = "needs a running voice daemon and HERDR_VOICE_FILE"]
 fn voice_daemon_roundtrip() {
     assert!(std::env::var_os("HERDR_VOICE_FILE").is_some());
-    let mut recorder = DaemonRecorder::new(resolve_url(""));
+    let mut recorder = DaemonRecorder::new(resolve_url(""), resolve_token(""));
     recorder.start();
     let mut typed = String::new();
     let deadline = Instant::now() + Duration::from_secs(60);

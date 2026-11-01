@@ -85,7 +85,7 @@ just check       # formatting, tests, and maintenance checks
 push-to-talk dictation in the local client (windows only, ported from the kfatehi/psmux `voice` branch). hold space, speak, let go: the words are typed into the focused pane as you say them, including panes on a remote machine. enter is never sent. tapping space still types a space; escape while talking takes the sentence back.
 
 1. run a [claude-code-voice](https://github.com/kfatehi/claude-code-voice) daemon on the machine you sit at. it owns speech-to-text: put your soniox key in its `soniox.json`. herdr never sees the key.
-2. if the daemon is not at `http://127.0.0.1:8765`, set `CCV_URL` (or `voice.url` below). if the daemon requires a token, export `CCV_TOKEN` before starting herdr.
+2. if the daemon is not at `http://127.0.0.1:8765`, set `CCV_URL` (or `voice.url` below). if the daemon requires a token, set `voice.token_file` to a file whose first line is the token (only the path goes in the config), or export `CCV_TOKEN` before starting herdr.
 3. it is on by default. tune it in `config.toml`:
 
 ```toml
@@ -94,6 +94,7 @@ enabled = true        # false turns it off
 key = "space"         # or "f1".."f12", "insert"
 hold_time_ms = 250    # how long space must be held to count as talking
 url = ""              # empty: CCV_URL, then http://127.0.0.1:8765
+token_file = ""       # empty: CCV_TOKEN; else a file whose first line is the token
 ```
 
 while the microphone is open, a red dot and a level meter appear at the right of the tab bar. the talk key is only intercepted when typing would reach a pane (not in prefix, navigation, copy mode, or dialogs). if the daemon is down or there is no microphone, the held space is typed instead of lost.

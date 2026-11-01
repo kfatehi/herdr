@@ -64,6 +64,23 @@ fn resolve_url(configured: &str) -> String {
         .unwrap_or_else(|| DEFAULT_URL.to_owned())
 }
 
+/// The daemon's token: the first line of `voice.token_file` when it names one, else `CCV_TOKEN`.
+/// The config holds only the file's path, never the secret, so config tooling that prints the
+/// config back never shows it. A file that cannot be read is reported and means no token.
+fn resolve_token(token_file: &str) -> Option<String> {
+    let path = token_file.trim();
+    if path.is_empty() {
+        return std::env::var("CCV_TOKEN").ok().filter(|t| !t.is_empty());
+    }
+    match std::fs::read_to_string(path) {
+        Ok(text) => text.lines().next().map(str::trim).filter(|t| !t.is_empty()).map(str::to_owned),
+        Err(err) => {
+            tracing::warn!(path, %err, "voice.token_file cannot be read; calling the voice daemon without a token");
+            None
+        }
+    }
+}
+
 /// What to do about a space bar event.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum SpaceAction {
@@ -246,12 +263,10 @@ struct DaemonRecorder {
 }
 
 impl DaemonRecorder {
-    fn new(url: String) -> Self {
+    fn new(url: String, token: Option<String>) -> Self {
         Self {
             url,
-            // Read from the environment rather than config, so the shared secret is never written
-            // to a file the config tooling prints back.
-            token: std::env::var("CCV_TOKEN").ok().filter(|t| !t.is_empty()),
+            token,
             holding: Arc::new(AtomicBool::new(false)),
             ledger: Arc::new(Mutex::new(Ledger::default())),
             settled: Arc::new(AtomicBool::new(true)),
@@ -642,6 +657,8 @@ pub(super) struct VoiceTick {
 pub(super) struct VoiceInput {
     talk_key: Option<TalkKey>,
     url: String,
+    /// The token the recorder was made with: a new one makes a new recorder.
+    token: Option<String>,
     recorder: Option<Box<dyn Recorder>>,
     space: SpaceTalk,
     /// The withheld space press, replayed if it turns out to be a tap or the hold fails.
@@ -663,6 +680,7 @@ impl VoiceInput {
         let mut voice = Self {
             talk_key: None,
             url: String::new(),
+            token: None,
             recorder: None,
             space: SpaceTalk::new(Duration::from_millis(config.hold_time_ms)),
             held_space: None,
@@ -705,13 +723,15 @@ impl VoiceInput {
             tracing::warn!(key = %config.key, "voice.key is not a key voice input can use; voice input is off");
         }
         let url = resolve_url(&config.url);
+        let token = resolve_token(&config.token_file);
         if !config.enabled || key.is_none() {
             self.recorder = None;
-        } else if self.recorder.is_none() || url != self.url {
-            self.recorder = Some(Box::new(DaemonRecorder::new(url.clone())));
+        } else if self.recorder.is_none() || url != self.url || token != self.token {
+            self.recorder = Some(Box::new(DaemonRecorder::new(url.clone(), token.clone())));
         }
         self.talk_key = key;
         self.url = url;
+        self.token = token;
     }
 
     fn listening(&self) -> bool {
